@@ -4,16 +4,23 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
+	"github.com/doyensec/safeurl"
 	"github.com/joho/godotenv"
 )
 
 type application struct {
-	logger *slog.Logger
+	logger                *slog.Logger
+	httpClient            *http.Client
+	safeHttpClient        *safeurl.WrappedClient
+	readabilityServiceURL string
 }
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	httpClient := &http.Client{Timeout: 30 * time.Second}
+	safeHttpClient := safeurl.Client(safeurl.GetConfigBuilder().SetTimeout(30 * time.Second).Build()) // for SSRF
 
 	_ = godotenv.Load()
 
@@ -22,8 +29,17 @@ func main() {
 		port = "8080"
 	}
 
+	readabilityServiceURL := os.Getenv("READABILITY_SERVICE_URL")
+	if readabilityServiceURL == "" {
+		logger.Error("READABILITY_SERVICE_URL is not set")
+		os.Exit(1)
+	}
+
 	app := &application{
-		logger: logger,
+		logger:                logger,
+		httpClient:            httpClient,
+		safeHttpClient:        safeHttpClient,
+		readabilityServiceURL: readabilityServiceURL,
 	}
 
 	server := &http.Server{

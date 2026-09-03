@@ -14,7 +14,7 @@ func (app *application) newRouter() http.Handler {
 
 	rtr.Use(middleware.Heartbeat("/ping"))
 
-	rtr.Get("/", app.homeHandler)
+	rtr.Post("/readables", app.createReadableHandler)
 
 	return rtr
 }

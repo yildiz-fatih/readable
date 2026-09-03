@@ -1,0 +1,19 @@
+{
+  "name": "readability-service",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "start": "node --env-file=.env main.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "express": "^5.2.1",
+    "jsdom": "^30.0.1"
+  }
+}
