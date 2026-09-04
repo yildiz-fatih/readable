@@ -12,7 +12,7 @@ import (
 func (app *application) createReadableHandler(w http.ResponseWriter, r *http.Request) {
 	type createReadableRequest struct {
 		URL    string `json:"url"`
-		Format string `json:"format"` // "html", "pdf"
+		Format string `json:"format"` // "html", "pdf", "epub"
 	}
 	var req createReadableRequest
 
@@ -28,7 +28,7 @@ func (app *application) createReadableHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	if req.Format != "pdf" && req.Format != "html" {
+	if req.Format != "html" && req.Format != "pdf" && req.Format != "epub" {
 		app.clientError(w, http.StatusBadRequest, "unsupported format")
 		return
 	}
@@ -125,6 +125,28 @@ func (app *application) createReadableHandler(w http.ResponseWriter, r *http.Req
 		}
 		w.Header().Set("Content-Type", "application/pdf")
 		_, err = io.Copy(w, gotenbergRes.Body)
+		if err != nil {
+			app.logger.Error(err.Error())
+		}
+	case "epub":
+		epubServiceReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, app.epubServiceURL+"/html-to-epub", readabilityRes.Body)
+		if err != nil {
+			app.serverError(w, err)
+			return
+		}
+		epubServiceReq.Header.Set("Content-Type", "text/html")
+		epubServiceRes, err := app.httpClient.Do(epubServiceReq)
+		if err != nil {
+			app.serverError(w, err)
+			return
+		}
+		defer epubServiceRes.Body.Close()
+		if epubServiceRes.StatusCode != http.StatusOK {
+			app.serverError(w, fmt.Errorf("epub service returned status: %d", epubServiceRes.StatusCode))
+			return
+		}
+		w.Header().Set("Content-Type", "application/epub+zip")
+		_, err = io.Copy(w, epubServiceRes.Body)
 		if err != nil {
 			app.logger.Error(err.Error())
 		}

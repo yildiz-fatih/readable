@@ -16,6 +16,7 @@ type application struct {
 	safeHttpClient        *safeurl.WrappedClient
 	readabilityServiceURL string
 	gotenbergURL          string
+	epubServiceURL        string
 }
 
 func main() {
@@ -42,12 +43,19 @@ func main() {
 		os.Exit(1)
 	}
 
+	epubServiceURL := os.Getenv("EPUB_SERVICE_URL")
+	if epubServiceURL == "" {
+		logger.Error("EPUB_SERVICE_URL is not set")
+		os.Exit(1)
+	}
+
 	app := &application{
 		logger:                logger,
 		httpClient:            httpClient,
 		safeHttpClient:        safeHttpClient,
 		readabilityServiceURL: readabilityServiceURL,
 		gotenbergURL:          gotenbergURL,
+		epubServiceURL:        epubServiceURL,
 	}
 
 	server := &http.Server{

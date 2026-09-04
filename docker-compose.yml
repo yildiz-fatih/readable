@@ -10,6 +10,7 @@ services:
     depends_on:
       - readability-service
       - gotenberg
+      - epub-service
     restart: unless-stopped
 
   readability-service:
@@ -22,4 +23,10 @@ services:
 
   gotenberg:
     image: gotenberg/gotenberg:8.36.0-chromium
+    restart: unless-stopped
+
+  epub-service:
+    build:
+      context: ./epub-service
+      dockerfile: Dockerfile
     restart: unless-stopped
