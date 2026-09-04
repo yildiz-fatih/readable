@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 )
 
 func (app *application) createReadableHandler(w http.ResponseWriter, r *http.Request) {
 	type createReadableRequest struct {
-		URL string `json:"url"`
+		URL    string `json:"url"`
+		Format string `json:"format"` // "html", "pdf"
 	}
 	var req createReadableRequest
 
@@ -23,6 +25,11 @@ func (app *application) createReadableHandler(w http.ResponseWriter, r *http.Req
 
 	if req.URL == "" {
 		app.clientError(w, http.StatusBadRequest, "'url' is required")
+		return
+	}
+
+	if req.Format != "pdf" && req.Format != "html" {
+		app.clientError(w, http.StatusBadRequest, "unsupported format")
 		return
 	}
 
@@ -75,9 +82,52 @@ func (app *application) createReadableHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/html")
-	_, err = io.Copy(w, readabilityRes.Body)
-	if err != nil {
-		app.logger.Error(err.Error())
+	switch req.Format {
+	case "html":
+		w.Header().Set("Content-Type", "text/html")
+		_, err = io.Copy(w, readabilityRes.Body)
+		if err != nil {
+			app.logger.Error(err.Error())
+		}
+	case "pdf":
+		var buf bytes.Buffer
+		multipartWriter := multipart.NewWriter(&buf)
+		form, err := multipartWriter.CreateFormFile("files", "index.html")
+		if err != nil {
+			app.serverError(w, err)
+			return
+		}
+		_, err = io.Copy(form, readabilityRes.Body)
+		if err != nil {
+			app.serverError(w, err)
+			return
+		}
+		err = multipartWriter.Close()
+		if err != nil {
+			app.serverError(w, err)
+			return
+		}
+		gotenbergReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, app.gotenbergURL+"/forms/chromium/convert/html", &buf)
+		if err != nil {
+			app.serverError(w, err)
+			return
+		}
+		gotenbergReq.Header.Set("Content-Type", multipartWriter.FormDataContentType())
+		gotenbergRes, err := app.httpClient.Do(gotenbergReq)
+		if err != nil {
+			app.serverError(w, err)
+			return
+		}
+		defer gotenbergRes.Body.Close()
+		if gotenbergRes.StatusCode != http.StatusOK {
+			app.serverError(w, fmt.Errorf("gotenberg returned status: %d", gotenbergRes.StatusCode))
+			return
+		}
+		w.Header().Set("Content-Type", "application/pdf")
+		_, err = io.Copy(w, gotenbergRes.Body)
+		if err != nil {
+			app.logger.Error(err.Error())
+		}
 	}
+
 }

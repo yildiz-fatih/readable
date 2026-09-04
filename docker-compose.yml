@@ -9,6 +9,7 @@ services:
       - ./server/.env
     depends_on:
       - readability-service
+      - gotenberg
     restart: unless-stopped
 
   readability-service:
@@ -17,4 +18,8 @@ services:
       dockerfile: Dockerfile
     env_file:
       - ./readability-service/.env
+    restart: unless-stopped
+
+  gotenberg:
+    image: gotenberg/gotenberg:8.36.0-chromium
     restart: unless-stopped

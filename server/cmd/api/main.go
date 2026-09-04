@@ -15,6 +15,7 @@ type application struct {
 	httpClient            *http.Client
 	safeHttpClient        *safeurl.WrappedClient
 	readabilityServiceURL string
+	gotenbergURL          string
 }
 
 func main() {
@@ -35,11 +36,18 @@ func main() {
 		os.Exit(1)
 	}
 
+	gotenbergURL := os.Getenv("GOTENBERG_URL")
+	if gotenbergURL == "" {
+		logger.Error("GOTENBERG_URL is not set")
+		os.Exit(1)
+	}
+
 	app := &application{
 		logger:                logger,
 		httpClient:            httpClient,
 		safeHttpClient:        safeHttpClient,
 		readabilityServiceURL: readabilityServiceURL,
+		gotenbergURL:          gotenbergURL,
 	}
 
 	server := &http.Server{
