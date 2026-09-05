@@ -2,12 +2,43 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"time"
+	"uuid"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
+
+func (app *application) uploadAndPresign(ctx context.Context, body []byte, contentType, ext string) (string, error) {
+	key := uuid.New().String()
+
+	_, err := app.s3Client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(app.s3BucketName),
+		Key:         aws.String(key),
+		Body:        bytes.NewReader(body),
+		ContentType: aws.String(contentType),
+	})
+	if err != nil {
+		return "", err
+	}
+
+	presignedReq, err := app.s3PresignClient.PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket:                     aws.String(app.s3BucketName),
+		Key:                        aws.String(key),
+		ResponseContentDisposition: aws.String(fmt.Sprintf(`inline; filename="%s.%s"`, key, ext)),
+	}, s3.WithPresignExpires(24*time.Hour))
+	if err != nil {
+		return "", err
+	}
+
+	return presignedReq.URL, nil
+}
 
 func (app *application) createReadableHandler(w http.ResponseWriter, r *http.Request) {
 	type createReadableRequest struct {
@@ -82,12 +113,19 @@ func (app *application) createReadableHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	var link string
+
 	switch req.Format {
 	case "html":
-		w.Header().Set("Content-Type", "text/html")
-		_, err = io.Copy(w, readabilityRes.Body)
+		htmlBytes, err := io.ReadAll(readabilityRes.Body)
 		if err != nil {
-			app.logger.Error(err.Error())
+			app.serverError(w, err)
+			return
+		}
+		link, err = app.uploadAndPresign(r.Context(), htmlBytes, "text/html", "html")
+		if err != nil {
+			app.serverError(w, err)
+			return
 		}
 	case "pdf":
 		var buf bytes.Buffer
@@ -123,10 +161,15 @@ func (app *application) createReadableHandler(w http.ResponseWriter, r *http.Req
 			app.serverError(w, fmt.Errorf("gotenberg returned status: %d", gotenbergRes.StatusCode))
 			return
 		}
-		w.Header().Set("Content-Type", "application/pdf")
-		_, err = io.Copy(w, gotenbergRes.Body)
+		pdfBytes, err := io.ReadAll(gotenbergRes.Body)
 		if err != nil {
-			app.logger.Error(err.Error())
+			app.serverError(w, err)
+			return
+		}
+		link, err = app.uploadAndPresign(r.Context(), pdfBytes, "application/pdf", "pdf")
+		if err != nil {
+			app.serverError(w, err)
+			return
 		}
 	case "epub":
 		epubServiceReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, app.epubServiceURL+"/html-to-epub", readabilityRes.Body)
@@ -145,11 +188,23 @@ func (app *application) createReadableHandler(w http.ResponseWriter, r *http.Req
 			app.serverError(w, fmt.Errorf("epub service returned status: %d", epubServiceRes.StatusCode))
 			return
 		}
-		w.Header().Set("Content-Type", "application/epub+zip")
-		_, err = io.Copy(w, epubServiceRes.Body)
+		epubBytes, err := io.ReadAll(epubServiceRes.Body)
 		if err != nil {
-			app.logger.Error(err.Error())
+			app.serverError(w, err)
+			return
+		}
+		link, err = app.uploadAndPresign(r.Context(), epubBytes, "application/epub+zip", "epub")
+		if err != nil {
+			app.serverError(w, err)
+			return
 		}
 	}
 
+	err = writeJSON(w, http.StatusOK, nil, map[string]string{
+		"link": link,
+	})
+	if err != nil {
+		app.serverError(w, err)
+		return
+	}
 }

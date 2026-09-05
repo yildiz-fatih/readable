@@ -11,6 +11,7 @@ services:
       - readability-service
       - gotenberg
       - epub-service
+      - seaweedfs
     restart: unless-stopped
 
   readability-service:
@@ -30,3 +31,15 @@ services:
       context: ./epub-service
       dockerfile: Dockerfile
     restart: unless-stopped
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.45
+    ports:
+      - "8333:8333"
+    env_file:
+      - ./server/.env
+    volumes:
+      - seaweed-data:/data
+
+volumes:
+  seaweed-data:
