@@ -21,9 +21,9 @@ type application struct {
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	_ = godotenv.Load()
+	_ = godotenv.Load("../.env")
 
-	port := os.Getenv("PORT")
+	port := os.Getenv("API_PORT")
 	if port == "" {
 		port = "8080"
 	}

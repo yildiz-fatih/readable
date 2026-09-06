@@ -21,7 +21,7 @@ app.post("/extract", async (req, res) => {
     }
 })
 
-const port = process.env.PORT || 8081
+const port = process.env.READABILITY_SERVICE_PORT || 8081
 app.listen(port, () => {
     console.log(`starting server on ${port}`)
 })

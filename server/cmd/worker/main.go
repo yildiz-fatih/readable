@@ -196,7 +196,7 @@ func (w *ReadableWorker) Work(ctx context.Context, job *river.Job[jobs.ReadableA
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	_ = godotenv.Load()
+	_ = godotenv.Load("../.env")
 
 	postgresURL := os.Getenv("POSTGRES_URL")
 	if postgresURL == "" {
@@ -222,21 +222,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	seaweedfsInternalURL := os.Getenv("SEAWEEDFS_INTERNAL_URL")
-	if seaweedfsInternalURL == "" {
-		logger.Error("SEAWEEDFS_INTERNAL_URL is not set")
+	s3InternalURL := os.Getenv("S3_INTERNAL_URL")
+	if s3InternalURL == "" {
+		logger.Error("S3_INTERNAL_URL is not set")
 		os.Exit(1)
 	}
 
-	seaweedfsPublicURL := os.Getenv("SEAWEEDFS_PUBLIC_URL")
-	if seaweedfsPublicURL == "" {
-		logger.Error("SEAWEEDFS_PUBLIC_URL is not set")
+	s3PublicURL := os.Getenv("S3_PUBLIC_URL")
+	if s3PublicURL == "" {
+		logger.Error("S3_PUBLIC_URL is not set")
 		os.Exit(1)
 	}
 
-	s3BucketName := os.Getenv("S3_BUCKET_NAME")
+	s3BucketName := os.Getenv("S3_BUCKET")
 	if s3BucketName == "" {
-		logger.Error("S3_BUCKET_NAME is not set")
+		logger.Error("S3_BUCKET is not set")
 		os.Exit(1)
 	}
 
@@ -268,14 +268,14 @@ func main() {
 	}
 
 	s3Client := s3.NewFromConfig(awsConfig, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String(seaweedfsInternalURL)
+		o.BaseEndpoint = aws.String(s3InternalURL)
 		o.UsePathStyle = true
 		o.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
 		o.ResponseChecksumValidation = aws.ResponseChecksumValidationWhenRequired
 	})
 
 	s3PresignClient := s3.NewPresignClient(s3.NewFromConfig(awsConfig, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String(seaweedfsPublicURL)
+		o.BaseEndpoint = aws.String(s3PublicURL)
 		o.UsePathStyle = true
 	}))
 
