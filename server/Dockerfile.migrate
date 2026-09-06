@@ -1,0 +1,12 @@
+FROM golang:1.27.1-alpine3.24 AS builder
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+
+RUN go install github.com/riverqueue/river/cmd/river@$(go list -m -f '{{.Version}}' github.com/riverqueue/river)
+
+FROM alpine:3.24.1
+COPY --from=builder /go/bin/river /usr/local/bin/river
+
+CMD river migrate-up --database-url $POSTGRES_URL
