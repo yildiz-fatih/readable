@@ -10,10 +10,10 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
 	"github.com/yildiz-fatih/readable/server/internal/jobs"
 	"github.com/yildiz-fatih/readable/server/internal/models"
+	"github.com/yildiz-fatih/readable/server/internal/repository"
 )
 
 type createReadableRequest struct {
@@ -24,6 +24,11 @@ type createReadableRequest struct {
 type createReadableResponse struct {
 	ID     int    `json:"id"`
 	Status string `json:"status"`
+}
+
+type getReadableResponse struct {
+	Status string `json:"status"`
+	URL    string `json:"url,omitempty"`
 }
 
 func (app *application) createReadableHandler(w http.ResponseWriter, r *http.Request) {
@@ -69,9 +74,7 @@ func (app *application) createReadableHandler(w http.ResponseWriter, r *http.Req
 	jobId := int(jobInsertResult.Job.ID)
 
 	// insert into readables
-	query := "INSERT INTO readables (id, format) VALUES ($1, $2) RETURNING id, status, format, created"
-	var readable models.Readable
-	err = tx.QueryRow(r.Context(), query, jobId, req.Format).Scan(&readable.ID, &readable.Status, &readable.Format, &readable.Created)
+	readable, err := app.readableRepository.CreateTx(r.Context(), tx, jobId, models.ReadableFormat(req.Format))
 	if err != nil {
 		app.serverError(w, err)
 		return
@@ -97,28 +100,20 @@ func (app *application) createReadableHandler(w http.ResponseWriter, r *http.Req
 }
 
 func (app *application) getReadableHandler(w http.ResponseWriter, r *http.Request) {
-	type getReadableResponse struct {
-		Status string `json:"status"`
-		URL    string `json:"url,omitempty"`
-	}
+	idString := r.PathValue("id")
 
-	id := r.PathValue("id")
-	if _, err := strconv.Atoi(id); err != nil {
+	id, err := strconv.Atoi(idString)
+	if err != nil {
 		app.clientError(w, http.StatusBadRequest, "invalid ID")
 		return
 	}
 
 	// check job status
-	query := `SELECT id, status, format, created
-	FROM readables
-	WHERE id = $1`
-
-	var readable models.Readable
-	err := app.db.QueryRow(r.Context(), query, id).Scan(&readable.ID, &readable.Status, &readable.Format, &readable.Created)
+	readable, err := app.readableRepository.Get(r.Context(), id)
 	if err != nil {
 		// invalid job ID check
-		if errors.Is(err, pgx.ErrNoRows) {
-			app.clientError(w, http.StatusNotFound, "Readable is not found")
+		if errors.Is(err, repository.ErrReadableNotFound) {
+			app.clientError(w, http.StatusNotFound, repository.ErrReadableNotFound.Error())
 			return
 		}
 
@@ -130,8 +125,8 @@ func (app *application) getReadableHandler(w http.ResponseWriter, r *http.Reques
 	case models.Succeeded:
 		presignedReq, err := app.s3PresignClient.PresignGetObject(r.Context(), &s3.GetObjectInput{
 			Bucket:                     aws.String(app.s3BucketName),
-			Key:                        aws.String(id),
-			ResponseContentDisposition: aws.String(fmt.Sprintf(`inline; filename="%s.%s"`, id, readable.Format)),
+			Key:                        aws.String(idString),
+			ResponseContentDisposition: aws.String(fmt.Sprintf(`inline; filename="%s.%s"`, idString, readable.Format)),
 		}, func(opts *s3.PresignOptions) {
 			opts.Expires = 1 * time.Hour
 		})

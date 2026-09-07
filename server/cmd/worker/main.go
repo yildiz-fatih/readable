@@ -27,6 +27,7 @@ import (
 	"github.com/riverqueue/river/rivertype"
 	"github.com/yildiz-fatih/readable/server/internal/jobs"
 	"github.com/yildiz-fatih/readable/server/internal/models"
+	"github.com/yildiz-fatih/readable/server/internal/repository"
 )
 
 type ReadableWorker struct {
@@ -40,12 +41,12 @@ type ReadableWorker struct {
 	epubServiceURL        string
 	gotenbergURL          string
 	logger                *slog.Logger
-	db                    *pgxpool.Pool
+	readableRepository    *repository.ReadableRepository
 }
 
 type JobErrorHandler struct {
-	db     *pgxpool.Pool
-	logger *slog.Logger
+	logger             *slog.Logger
+	readableRepository *repository.ReadableRepository
 }
 
 /*
@@ -56,8 +57,7 @@ type JobErrorHandler struct {
 func (h *JobErrorHandler) HandleError(ctx context.Context, job *rivertype.JobRow, err error) *river.ErrorHandlerResult {
 	// Runs after the last failed attempt (when max attempts is reached)
 	if job.Attempt >= job.MaxAttempts {
-		query := "UPDATE readables SET status = $1 WHERE id = $2"
-		_, dbErr := h.db.Exec(ctx, query, string(models.Failed), job.ID)
+		dbErr := h.readableRepository.UpdateStatus(ctx, int(job.ID), models.Failed)
 		if dbErr != nil {
 			h.logger.Error(dbErr.Error())
 			return nil
@@ -73,8 +73,7 @@ func (h *JobErrorHandler) HandlePanic(ctx context.Context, job *rivertype.JobRow
 
 	// Runs after the last failed attempt (when max attempts is reached)
 	if job.Attempt >= job.MaxAttempts {
-		query := "UPDATE readables SET status = $1 WHERE id = $2"
-		_, dbErr := h.db.Exec(ctx, query, string(models.Failed), job.ID)
+		dbErr := h.readableRepository.UpdateStatus(ctx, int(job.ID), models.Failed)
 		if dbErr != nil {
 			h.logger.Error(dbErr.Error())
 			return nil
@@ -108,8 +107,7 @@ func (w *ReadableWorker) Work(ctx context.Context, job *river.Job[jobs.ReadableA
 	if len(html) > maxHtmlSize {
 		err = fmt.Errorf("got HTML of %d bytes, want a maximum of: %d bytes", len(html), maxHtmlSize)
 		w.logger.Error(err.Error())
-		query := "UPDATE readables SET status = $1 WHERE id = $2"
-		_, dbErr := w.db.Exec(ctx, query, string(models.Failed), job.ID)
+		dbErr := w.readableRepository.UpdateStatus(ctx, int(job.ID), models.Failed)
 		if dbErr != nil {
 			w.logger.Error(dbErr.Error())
 			return river.JobCancel(err)
@@ -233,8 +231,7 @@ func (w *ReadableWorker) Work(ctx context.Context, job *river.Job[jobs.ReadableA
 	default:
 		err = fmt.Errorf("invalid format: %s", job.Args.Format)
 		w.logger.Error(err.Error())
-		query := "UPDATE readables SET status = $1 WHERE id = $2"
-		_, dbErr := w.db.Exec(ctx, query, string(models.Failed), job.ID)
+		dbErr := w.readableRepository.UpdateStatus(ctx, int(job.ID), models.Failed)
 		if dbErr != nil {
 			w.logger.Error(dbErr.Error())
 			return river.JobCancel(err)
@@ -242,8 +239,7 @@ func (w *ReadableWorker) Work(ctx context.Context, job *river.Job[jobs.ReadableA
 		return river.JobCancel(err)
 	}
 
-	query := "UPDATE readables SET status = $1 WHERE id = $2"
-	_, err = w.db.Exec(ctx, query, string(models.Succeeded), job.ID)
+	err = w.readableRepository.UpdateStatus(ctx, int(job.ID), models.Succeeded)
 	if err != nil {
 		return err
 	}
@@ -332,6 +328,8 @@ func main() {
 		os.Exit(1)
 	}
 
+	readableRepository := repository.NewReadableRepository(dbPool)
+
 	worker := &ReadableWorker{
 		httpClient:            httpClient,
 		safeHttpClient:        safeHttpClient,
@@ -341,7 +339,7 @@ func main() {
 		epubServiceURL:        epubServiceURL,
 		gotenbergURL:          gotenbergURL,
 		logger:                logger,
-		db:                    dbPool,
+		readableRepository:    readableRepository,
 	}
 
 	workers := river.NewWorkers()
@@ -354,8 +352,8 @@ func main() {
 		},
 		Workers: workers,
 		ErrorHandler: &JobErrorHandler{
-			db:     dbPool,
-			logger: logger,
+			logger:             logger,
+			readableRepository: readableRepository,
 		},
 	})
 	if err != nil {

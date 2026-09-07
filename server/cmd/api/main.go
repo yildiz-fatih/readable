@@ -15,14 +15,16 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
+	"github.com/yildiz-fatih/readable/server/internal/repository"
 )
 
 type application struct {
-	logger          *slog.Logger
-	riverClient     *river.Client[pgx.Tx]
-	db              *pgxpool.Pool
-	s3PresignClient *s3.PresignClient
-	s3BucketName    string
+	logger             *slog.Logger
+	riverClient        *river.Client[pgx.Tx]
+	db                 *pgxpool.Pool
+	s3PresignClient    *s3.PresignClient
+	s3BucketName       string
+	readableRepository *repository.ReadableRepository
 }
 
 func main() {
@@ -101,11 +103,12 @@ func main() {
 	}))
 
 	app := &application{
-		logger:          logger,
-		riverClient:     riverClient,
-		db:              dbPool,
-		s3PresignClient: s3PresignClient,
-		s3BucketName:    s3BucketName,
+		logger:             logger,
+		riverClient:        riverClient,
+		db:                 dbPool,
+		s3PresignClient:    s3PresignClient,
+		s3BucketName:       s3BucketName,
+		readableRepository: repository.NewReadableRepository(dbPool),
 	}
 
 	server := &http.Server{
