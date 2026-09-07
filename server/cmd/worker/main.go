@@ -24,6 +24,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
+	"github.com/riverqueue/river/rivertype"
 	"github.com/yildiz-fatih/readable/server/internal/jobs"
 	"github.com/yildiz-fatih/readable/server/internal/models"
 )
@@ -42,10 +43,47 @@ type ReadableWorker struct {
 	db                    *pgxpool.Pool
 }
 
+type JobErrorHandler struct {
+	db     *pgxpool.Pool
+	logger *slog.Logger
+}
+
 /*
-* TODO:
-* 	- update readables table status column to "failed" when max attempts is reached
+* Runs after every failed attempt
  */
+// return nil											-> "let it retry"
+// return &river.ErrorHandlerResult{SetCancelled: true}	-> "cancel it"
+func (h *JobErrorHandler) HandleError(ctx context.Context, job *rivertype.JobRow, err error) *river.ErrorHandlerResult {
+	// Runs after the last failed attempt (when max attempts is reached)
+	if job.Attempt >= job.MaxAttempts {
+		query := "UPDATE readables SET status = $1 WHERE id = $2"
+		_, dbErr := h.db.Exec(ctx, query, string(models.Failed), job.ID)
+		if dbErr != nil {
+			h.logger.Error(dbErr.Error())
+			return nil
+		}
+	}
+
+	return nil
+}
+
+func (h *JobErrorHandler) HandlePanic(ctx context.Context, job *rivertype.JobRow, panicVal any, trace string) *river.ErrorHandlerResult {
+	h.logger.Error("Job panicked", "panic value", panicVal)
+	h.logger.Error("Stack trace", "trace", trace)
+
+	// Runs after the last failed attempt (when max attempts is reached)
+	if job.Attempt >= job.MaxAttempts {
+		query := "UPDATE readables SET status = $1 WHERE id = $2"
+		_, dbErr := h.db.Exec(ctx, query, string(models.Failed), job.ID)
+		if dbErr != nil {
+			h.logger.Error(dbErr.Error())
+			return nil
+		}
+	}
+
+	return nil
+}
+
 func (w *ReadableWorker) Work(ctx context.Context, job *river.Job[jobs.ReadableArgs]) error {
 	fetchReq, err := http.NewRequestWithContext(ctx, http.MethodGet, job.Args.URL, nil)
 	if err != nil {
@@ -70,6 +108,12 @@ func (w *ReadableWorker) Work(ctx context.Context, job *river.Job[jobs.ReadableA
 	if len(html) > maxHtmlSize {
 		err = fmt.Errorf("got HTML of %d bytes, want a maximum of: %d bytes", len(html), maxHtmlSize)
 		w.logger.Error(err.Error())
+		query := "UPDATE readables SET status = $1 WHERE id = $2"
+		_, dbErr := w.db.Exec(ctx, query, string(models.Failed), job.ID)
+		if dbErr != nil {
+			w.logger.Error(dbErr.Error())
+			return river.JobCancel(err)
+		}
 		return river.JobCancel(err) // do not retry
 	}
 
@@ -189,6 +233,12 @@ func (w *ReadableWorker) Work(ctx context.Context, job *river.Job[jobs.ReadableA
 	default:
 		err = fmt.Errorf("invalid format: %s", job.Args.Format)
 		w.logger.Error(err.Error())
+		query := "UPDATE readables SET status = $1 WHERE id = $2"
+		_, dbErr := w.db.Exec(ctx, query, string(models.Failed), job.ID)
+		if dbErr != nil {
+			w.logger.Error(dbErr.Error())
+			return river.JobCancel(err)
+		}
 		return river.JobCancel(err)
 	}
 
@@ -303,6 +353,10 @@ func main() {
 			river.QueueDefault: {MaxWorkers: 100},
 		},
 		Workers: workers,
+		ErrorHandler: &JobErrorHandler{
+			db:     dbPool,
+			logger: logger,
+		},
 	})
 	if err != nil {
 		logger.Error(err.Error())
