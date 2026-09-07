@@ -8,7 +8,13 @@ services:
     environment:
       API_PORT: ${API_PORT}
       POSTGRES_URL: ${POSTGRES_URL}
+      S3_PUBLIC_URL: ${S3_PUBLIC_URL}
+      S3_BUCKET: ${S3_BUCKET}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
     depends_on:
+      river-migrate:
+        condition: service_completed_successfully
       migrate:
         condition: service_completed_successfully
       postgres:
@@ -27,9 +33,10 @@ services:
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       S3_INTERNAL_URL: ${S3_INTERNAL_URL}
-      S3_PUBLIC_URL: ${S3_PUBLIC_URL}
       S3_BUCKET: ${S3_BUCKET}
     depends_on:
+      river-migrate:
+        condition: service_completed_successfully
       migrate:
         condition: service_completed_successfully
       postgres:
@@ -44,15 +51,30 @@ services:
         condition: service_started
     restart: unless-stopped
 
-  migrate:
+  river-migrate:
     build:
       context: ./server
-      dockerfile: Dockerfile.migrate
+      dockerfile: Dockerfile.river-migrate
     environment:
       POSTGRES_URL: ${POSTGRES_URL}
     depends_on:
       postgres:
         condition: service_healthy
+
+  migrate:
+    image: migrate/migrate:v4.19.1
+    environment:
+      POSTGRES_URL: ${POSTGRES_URL}
+    command:
+      - "-path=/migrations"
+      - "-database=${POSTGRES_URL}"
+      - "up"
+    volumes:
+      - ./server/migrations:/migrations
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: no
 
   readability-service:
     build:

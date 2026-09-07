@@ -11,9 +11,9 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
-	"uuid"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -25,24 +25,27 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 	"github.com/yildiz-fatih/readable/server/internal/jobs"
+	"github.com/yildiz-fatih/readable/server/internal/models"
 )
 
 type ReadableWorker struct {
-	// An embedded WorkerDefaults sets up default methods to fulfill the rest of
-	// the Worker interface:
 	river.WorkerDefaults[jobs.ReadableArgs]
 	// other stuff
 	httpClient            *http.Client
 	safeHttpClient        *safeurl.WrappedClient
 	readabilityServiceURL string
 	s3Client              *s3.Client
-	s3PresignClient       *s3.PresignClient
 	s3BucketName          string
 	epubServiceURL        string
 	gotenbergURL          string
 	logger                *slog.Logger
+	db                    *pgxpool.Pool
 }
 
+/*
+* TODO:
+* 	- update readables table status column to "failed" when max attempts is reached
+ */
 func (w *ReadableWorker) Work(ctx context.Context, job *river.Job[jobs.ReadableArgs]) error {
 	fetchReq, err := http.NewRequestWithContext(ctx, http.MethodGet, job.Args.URL, nil)
 	if err != nil {
@@ -67,7 +70,7 @@ func (w *ReadableWorker) Work(ctx context.Context, job *river.Job[jobs.ReadableA
 	if len(html) > maxHtmlSize {
 		err = fmt.Errorf("got HTML of %d bytes, want a maximum of: %d bytes", len(html), maxHtmlSize)
 		w.logger.Error(err.Error())
-		return err
+		return river.JobCancel(err) // do not retry
 	}
 
 	readabilityReqBody, err := json.Marshal(map[string]string{"url": job.Args.URL, "html": string(html)})
@@ -95,21 +98,22 @@ func (w *ReadableWorker) Work(ctx context.Context, job *river.Job[jobs.ReadableA
 		return err
 	}
 
-	var link string
+	jobIDString := strconv.FormatInt(job.ID, 10)
 
 	switch job.Args.Format {
-	case "html":
+	case string(models.HTML):
 		htmlBytes, err := io.ReadAll(readabilityRes.Body)
 		if err != nil {
 			w.logger.Error(err.Error())
 			return err
 		}
-		link, err = w.uploadAndPresign(ctx, htmlBytes, "text/html", "html")
+
+		err = w.upload(ctx, jobIDString, "text/html", htmlBytes)
 		if err != nil {
 			w.logger.Error(err.Error())
 			return err
 		}
-	case "pdf":
+	case string(models.PDF):
 		var buf bytes.Buffer
 		multipartWriter := multipart.NewWriter(&buf)
 		form, err := multipartWriter.CreateFormFile("files", "index.html")
@@ -149,12 +153,12 @@ func (w *ReadableWorker) Work(ctx context.Context, job *river.Job[jobs.ReadableA
 			w.logger.Error(err.Error())
 			return err
 		}
-		link, err = w.uploadAndPresign(ctx, pdfBytes, "application/pdf", "pdf")
+		err = w.upload(ctx, jobIDString, "application/pdf", pdfBytes)
 		if err != nil {
 			w.logger.Error(err.Error())
 			return err
 		}
-	case "epub":
+	case string(models.EPUB):
 		epubServiceReq, err := http.NewRequestWithContext(ctx, http.MethodPost, w.epubServiceURL+"/html-to-epub", readabilityRes.Body)
 		if err != nil {
 			w.logger.Error(err.Error())
@@ -177,20 +181,24 @@ func (w *ReadableWorker) Work(ctx context.Context, job *river.Job[jobs.ReadableA
 			w.logger.Error(err.Error())
 			return err
 		}
-		link, err = w.uploadAndPresign(ctx, epubBytes, "application/epub+zip", "epub")
+		err = w.upload(ctx, jobIDString, "application/epub+zip", epubBytes)
 		if err != nil {
 			w.logger.Error(err.Error())
 			return err
 		}
+	default:
+		err = fmt.Errorf("invalid format: %s", job.Args.Format)
+		w.logger.Error(err.Error())
+		return river.JobCancel(err)
 	}
 
-	/*
-	* TODO: write "link" to postgres, so that the GET endpoint can find it later.
-	 */
-	w.logger.Info("link is ready", "url", link)
+	query := "UPDATE readables SET status = $1 WHERE id = $2"
+	_, err = w.db.Exec(ctx, query, string(models.Succeeded), job.ID)
+	if err != nil {
+		return err
+	}
 
-	// success
-	return nil
+	return nil // success
 }
 
 func main() {
@@ -225,12 +233,6 @@ func main() {
 	s3InternalURL := os.Getenv("S3_INTERNAL_URL")
 	if s3InternalURL == "" {
 		logger.Error("S3_INTERNAL_URL is not set")
-		os.Exit(1)
-	}
-
-	s3PublicURL := os.Getenv("S3_PUBLIC_URL")
-	if s3PublicURL == "" {
-		logger.Error("S3_PUBLIC_URL is not set")
 		os.Exit(1)
 	}
 
@@ -274,32 +276,27 @@ func main() {
 		o.ResponseChecksumValidation = aws.ResponseChecksumValidationWhenRequired
 	})
 
-	s3PresignClient := s3.NewPresignClient(s3.NewFromConfig(awsConfig, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String(s3PublicURL)
-		o.UsePathStyle = true
-	}))
+	dbPool, err := pgxpool.New(context.Background(), postgresURL)
+	if err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
 
 	worker := &ReadableWorker{
 		httpClient:            httpClient,
 		safeHttpClient:        safeHttpClient,
 		readabilityServiceURL: readabilityServiceURL,
 		s3Client:              s3Client,
-		s3PresignClient:       s3PresignClient,
 		s3BucketName:          s3BucketName,
 		epubServiceURL:        epubServiceURL,
 		gotenbergURL:          gotenbergURL,
 		logger:                logger,
+		db:                    dbPool,
 	}
 
 	workers := river.NewWorkers()
 	// AddWorker panics if the worker is already registered or invalid:
 	river.AddWorker(workers, worker)
-
-	dbPool, err := pgxpool.New(context.Background(), postgresURL)
-	if err != nil {
-		logger.Error(err.Error())
-		os.Exit(1)
-	}
 
 	riverClient, err := river.NewClient(riverpgxv5.New(dbPool), &river.Config{
 		Queues: map[string]river.QueueConfig{
@@ -321,27 +318,12 @@ func main() {
 	<-riverClient.Stopped()
 }
 
-func (w *ReadableWorker) uploadAndPresign(ctx context.Context, body []byte, contentType, ext string) (string, error) {
-	key := uuid.New().String()
-
+func (w *ReadableWorker) upload(ctx context.Context, key string, contentType string, body []byte) error {
 	_, err := w.s3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(w.s3BucketName),
 		Key:         aws.String(key),
 		Body:        bytes.NewReader(body),
 		ContentType: aws.String(contentType),
 	})
-	if err != nil {
-		return "", err
-	}
-
-	presignedReq, err := w.s3PresignClient.PresignGetObject(ctx, &s3.GetObjectInput{
-		Bucket:                     aws.String(w.s3BucketName),
-		Key:                        aws.String(key),
-		ResponseContentDisposition: aws.String(fmt.Sprintf(`inline; filename="%s.%s"`, key, ext)),
-	}, s3.WithPresignExpires(24*time.Hour))
-	if err != nil {
-		return "", err
-	}
-
-	return presignedReq.URL, nil
+	return err
 }

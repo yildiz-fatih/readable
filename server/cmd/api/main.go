@@ -6,6 +6,10 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
@@ -14,8 +18,11 @@ import (
 )
 
 type application struct {
-	logger      *slog.Logger
-	riverClient *river.Client[pgx.Tx]
+	logger          *slog.Logger
+	riverClient     *river.Client[pgx.Tx]
+	db              *pgxpool.Pool
+	s3PresignClient *s3.PresignClient
+	s3BucketName    string
 }
 
 func main() {
@@ -31,6 +38,30 @@ func main() {
 	postgresURL := os.Getenv("POSTGRES_URL")
 	if postgresURL == "" {
 		logger.Error("POSTGRES_URL is not set")
+		os.Exit(1)
+	}
+
+	s3PublicURL := os.Getenv("S3_PUBLIC_URL")
+	if s3PublicURL == "" {
+		logger.Error("S3_PUBLIC_URL is not set")
+		os.Exit(1)
+	}
+
+	s3BucketName := os.Getenv("S3_BUCKET")
+	if s3BucketName == "" {
+		logger.Error("S3_BUCKET is not set")
+		os.Exit(1)
+	}
+
+	awsAccessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
+	if awsAccessKeyID == "" {
+		logger.Error("AWS_ACCESS_KEY_ID is not set")
+		os.Exit(1)
+	}
+
+	awsSecretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+	if awsSecretAccessKey == "" {
+		logger.Error("AWS_SECRET_ACCESS_KEY is not set")
 		os.Exit(1)
 	}
 
@@ -53,9 +84,28 @@ func main() {
 		os.Exit(1)
 	}
 
+	awsConfig, err := config.LoadDefaultConfig(context.Background(),
+		config.WithRegion("us-east-1"),
+		config.WithCredentialsProvider(
+			credentials.NewStaticCredentialsProvider(awsAccessKeyID, awsSecretAccessKey, ""),
+		),
+	)
+	if err != nil {
+		logger.Error("failed to load AWS SDK config", "error", err)
+		os.Exit(1)
+	}
+
+	s3PresignClient := s3.NewPresignClient(s3.NewFromConfig(awsConfig, func(o *s3.Options) {
+		o.BaseEndpoint = aws.String(s3PublicURL)
+		o.UsePathStyle = true
+	}))
+
 	app := &application{
-		logger:      logger,
-		riverClient: riverClient,
+		logger:          logger,
+		riverClient:     riverClient,
+		db:              dbPool,
+		s3PresignClient: s3PresignClient,
+		s3BucketName:    s3BucketName,
 	}
 
 	server := &http.Server{
