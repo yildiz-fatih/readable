@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -16,6 +17,13 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 	"github.com/yildiz-fatih/readable/server/internal/repository"
+)
+
+const (
+	readHeaderTimeout = 5 * time.Second
+	readTimeout       = 10 * time.Second
+	writeTimeout      = 20 * time.Second
+	idleTimeout       = 120 * time.Second
 )
 
 type application struct {
@@ -112,9 +120,13 @@ func main() {
 	}
 
 	server := &http.Server{
-		Addr:     ":" + port,
-		Handler:  app.newRouter(),
-		ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
+		Addr:              ":" + port,
+		Handler:           app.newRouter(),
+		ErrorLog:          slog.NewLogLogger(logger.Handler(), slog.LevelError),
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
 	}
 
 	logger.Info("starting server", "address", server.Addr)
