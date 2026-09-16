@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Readable</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="main.js" defer></script>
+</head>
+
+<body>
+    <main class="container">
+        <h1>Readable</h1>
+
+        <div id="status-card"></div>
+
+        <form id="readable-form">
+            <label for="url">URL</label>
+            <input type="url" id="url" name="url" placeholder="https://example.com/article" required>
+
+            <label for="format">Format</label>
+            <select id="format" name="format">
+                <option value="pdf">PDF</option>
+                <option value="epub">EPUB</option>
+                <option value="html">HTML</option>
+            </select>
+
+            <button type="submit" id="submit-button">Go</button>
+        </form>
+    </main>
+</body>
+
+</html>
