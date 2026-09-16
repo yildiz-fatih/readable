@@ -1,5 +1,5 @@
 CREATE TYPE readable_status AS ENUM ('pending', 'succeeded', 'failed');
-CREATE TYPE readable_format AS ENUM ('pdf', 'epub', 'html');
+CREATE TYPE readable_format AS ENUM ('pdf', 'epub', 'md', 'html');
 
 CREATE TABLE IF NOT EXISTS readables (
     id BIGINT PRIMARY KEY,

@@ -1,6 +1,6 @@
 # Readable
 
-Save web pages as readable PDF, EPUB, or HTML documents.
+Save web pages as readable PDF, EPUB, Markdown, or HTML documents.
 
 ## Quick Start
 

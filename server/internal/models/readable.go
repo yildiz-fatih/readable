@@ -8,6 +8,7 @@ const (
 	HTML ReadableFormat = "html"
 	PDF  ReadableFormat = "pdf"
 	EPUB ReadableFormat = "epub"
+	MD   ReadableFormat = "md"
 )
 
 type ReadableStatus string

@@ -201,7 +201,7 @@ func (w *ReadableWorker) Work(ctx context.Context, job *river.Job[jobs.ReadableA
 			return err
 		}
 	case string(models.EPUB):
-		epubServiceReq, err := http.NewRequestWithContext(ctx, http.MethodPost, w.epubServiceURL+"/html-to-epub", readabilityRes.Body)
+		epubServiceReq, err := http.NewRequestWithContext(ctx, http.MethodPost, w.epubServiceURL+"/convert?to=epub", readabilityRes.Body)
 		if err != nil {
 			w.logger.Error(err.Error())
 			return err
@@ -224,6 +224,34 @@ func (w *ReadableWorker) Work(ctx context.Context, job *river.Job[jobs.ReadableA
 			return err
 		}
 		err = w.upload(ctx, jobIDString, "application/epub+zip", epubBytes)
+		if err != nil {
+			w.logger.Error(err.Error())
+			return err
+		}
+	case string(models.MD):
+		epubServiceReq, err := http.NewRequestWithContext(ctx, http.MethodPost, w.epubServiceURL+"/convert?to=md", readabilityRes.Body)
+		if err != nil {
+			w.logger.Error(err.Error())
+			return err
+		}
+		epubServiceReq.Header.Set("Content-Type", "text/html")
+		epubServiceRes, err := w.httpClient.Do(epubServiceReq)
+		if err != nil {
+			w.logger.Error(err.Error())
+			return err
+		}
+		defer epubServiceRes.Body.Close()
+		if epubServiceRes.StatusCode != http.StatusOK {
+			err = fmt.Errorf("epub service returned status: %d", epubServiceRes.StatusCode)
+			w.logger.Error(err.Error())
+			return err
+		}
+		mdBytes, err := io.ReadAll(epubServiceRes.Body)
+		if err != nil {
+			w.logger.Error(err.Error())
+			return err
+		}
+		err = w.upload(ctx, jobIDString, "text/markdown", mdBytes)
 		if err != nil {
 			w.logger.Error(err.Error())
 			return err

@@ -18,7 +18,7 @@ import (
 
 type createReadableRequest struct {
 	URL    string `json:"url"`
-	Format string `json:"format"` // "html", "pdf", "epub"
+	Format string `json:"format"` // "pdf", "epub", "md", "html"
 }
 
 type createReadableResponse struct {
@@ -46,7 +46,7 @@ func (app *application) createReadableHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	if req.Format != string(models.HTML) && req.Format != string(models.PDF) && req.Format != string(models.EPUB) {
+	if req.Format != string(models.PDF) && req.Format != string(models.EPUB) && req.Format != string(models.MD) && req.Format != string(models.HTML) {
 		app.clientError(w, http.StatusBadRequest, "unsupported format")
 		return
 	}
