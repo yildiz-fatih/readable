@@ -24,6 +24,7 @@ type application struct {
 	s3PresignClient    *s3.PresignClient
 	s3BucketName       string
 	readableRepository *repository.ReadableRepository
+	frontendURL        string
 }
 
 func main() {
@@ -63,6 +64,12 @@ func main() {
 	awsSecretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
 	if awsSecretAccessKey == "" {
 		logger.Error("AWS_SECRET_ACCESS_KEY is not set")
+		os.Exit(1)
+	}
+
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		logger.Error("FRONTEND_URL is not set")
 		os.Exit(1)
 	}
 
@@ -108,6 +115,7 @@ func main() {
 		s3PresignClient:    s3PresignClient,
 		s3BucketName:       s3BucketName,
 		readableRepository: repository.NewReadableRepository(dbPool),
+		frontendURL:        frontendURL,
 	}
 
 	err = app.serve(":" + port)

@@ -21,6 +21,7 @@ services:
       S3_BUCKET: ${S3_BUCKET}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      FRONTEND_URL: ${FRONTEND_URL}
     depends_on:
       river-migrate:
         condition: service_completed_successfully
