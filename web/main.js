@@ -33,7 +33,7 @@ form.addEventListener("submit", async function (event) {
     submitButton.disabled = true
 
     const url = document.getElementById("url").value
-    const format = document.getElementById("format").value
+    const format = document.querySelector('input[name="format"]:checked').value
 
     let postResult
     try {

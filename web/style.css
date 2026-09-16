@@ -1,0 +1,63 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+}
+
+body {
+    font-family: "Averia Serif Libre", serif;
+    background-color: black;
+    color: white;
+    display: flex;
+    justify-content: center;
+}
+
+.section-title {
+    background-color: white;
+    color: black;
+    padding: 3px 6px;
+}
+
+input {
+    margin: 0.4rem;
+}
+
+#url {
+    width: 100%;
+    background-color: black;
+    color: white;
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    padding: 5px;
+    font-size: 15px;
+}
+
+#readable-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    border: 2px solid white;
+    padding: 25px 45px;
+}
+
+#submit-button {
+    align-self: center;
+    padding-left: 20px;
+    padding-right: 20px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    font-size: 20px;
+    background: white;
+    color: black;
+    border: none;
+    cursor: pointer;
+}
+
+#readable-title {
+    font-size: 4em;
+    margin-top: 15px;
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+fieldset {
+    border: 2px groove rgba(255, 255, 255, 0.5);
+}

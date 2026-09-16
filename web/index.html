@@ -5,29 +5,43 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Readable</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Averia+Serif+Libre:ital,wght@0,300;0,400;0,700;1,300;1,400;1,700&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script src="main.js" defer></script>
 </head>
 
 <body>
     <main class="container">
-        <h1>Readable</h1>
-
-        <div id="status-card"></div>
+        <h1 id="readable-title">Readable</h1>
 
         <form id="readable-form">
-            <label for="url">URL</label>
-            <input type="url" id="url" name="url" placeholder="https://example.com/article" required>
+            <div class="field">
+                <label for="url" class="section-title">URL</label><br />
+                <input type="url" id="url" name="url" placeholder="https://example.com/article" required>
+            </div>
 
-            <label for="format">Format</label>
-            <select id="format" name="format">
-                <option value="pdf">PDF</option>
-                <option value="epub">EPUB</option>
-                <option value="html">HTML</option>
-            </select>
+            <fieldset>
+                <legend class="section-title">Format</legend>
+
+                <input type="radio" id="format-pdf" name="format" value="pdf" checked />
+                <label for="format-pdf">PDF</label>
+
+                <input type="radio" id="format-epub" name="format" value="epub" />
+                <label for="format-epub">EPUB</label>
+
+                <input type="radio" id="format-html" name="format" value="html" />
+                <label for="format-html">HTML</label>
+            </fieldset>
 
             <button type="submit" id="submit-button">Go</button>
         </form>
+
+        <br>
+        <div id="status-card"></div>
     </main>
 </body>
 
