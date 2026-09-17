@@ -1,20 +1,44 @@
+:root {
+    --color-bg: #000;
+    --color-fg: #fff;
+    --color-border-soft: rgba(255, 255, 255, 0.5);
+    --color-error: #ff5c5c;
+    --color-working: #ffd23f;
+    --color-success: #4ade80;
+}
+
 * {
     box-sizing: border-box;
     margin: 0;
 }
 
 body {
-    font-family: "Averia Serif Libre", serif;
-    background-color: black;
-    color: white;
     display: flex;
     justify-content: center;
+    background-color: var(--color-bg);
+    color: var(--color-fg);
+    font-family: "Bitter", serif;
 }
 
 .section-title {
-    background-color: white;
-    color: black;
+    background-color: var(--color-fg);
+    color: var(--color-bg);
     padding: 3px 6px;
+}
+
+#readable-title {
+    margin-top: 15px;
+    margin-bottom: 30px;
+    font-size: 4em;
+    text-align: center;
+}
+
+#readable-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    padding: 25px 45px;
+    border: 2px solid var(--color-fg);
 }
 
 input {
@@ -23,41 +47,53 @@ input {
 
 #url {
     width: 100%;
-    background-color: black;
-    color: white;
-    border: 2px solid rgba(255, 255, 255, 0.5);
     padding: 5px;
     font-size: 15px;
+    background-color: var(--color-bg);
+    color: var(--color-fg);
+    border: 2px solid var(--color-border-soft);
 }
 
-#readable-form {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-    border: 2px solid white;
-    padding: 25px 45px;
+fieldset {
+    border: 2px groove var(--color-border-soft);
+}
+
+.format-option {
+    display: inline-block;
+    white-space: nowrap;
+}
+
+#status-card {
+    text-align: center;
+}
+
+#status-card.status-error {
+    color: var(--color-error);
+}
+
+#status-card.status-working {
+    color: var(--color-working);
+}
+
+.download-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    font-size: 20px;
+    font-family: inherit;
+    background: var(--color-success);
+    color: var(--color-bg);
+    text-decoration: none;
 }
 
 #submit-button {
     align-self: center;
-    padding-left: 20px;
-    padding-right: 20px;
-    padding-top: 10px;
-    padding-bottom: 10px;
+    padding: 10px 20px;
     font-size: 20px;
-    background: white;
-    color: black;
+    font-family: inherit;
+    background: var(--color-fg);
+    color: var(--color-bg);
     border: none;
     cursor: pointer;
-}
-
-#readable-title {
-    font-size: 4em;
-    margin-top: 15px;
-    margin-bottom: 30px;
-    text-align: center;
-}
-
-fieldset {
-    border: 2px groove rgba(255, 255, 255, 0.5);
 }

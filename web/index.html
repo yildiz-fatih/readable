@@ -7,8 +7,7 @@
     <title>Readable</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Averia+Serif+Libre:ital,wght@0,300;0,400;0,700;1,300;1,400;1,700&display=swap"
+    <link href="https://fonts.googleapis.com/css2?family=Bitter:ital,wght@0,100..900;1,100..900&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script src="main.js" defer></script>
@@ -27,17 +26,25 @@
             <fieldset>
                 <legend class="section-title">Format</legend>
 
-                <input type="radio" id="format-pdf" name="format" value="pdf" checked />
-                <label for="format-pdf">PDF</label>
+                <label class="format-option">
+                    <input type="radio" name="format" value="pdf" checked />
+                    PDF
+                </label>
 
-                <input type="radio" id="format-epub" name="format" value="epub" />
-                <label for="format-epub">EPUB</label>
+                <label class="format-option">
+                    <input type="radio" name="format" value="epub" />
+                    EPUB
+                </label>
 
-                <input type="radio" id="format-md" name="format" value="md" />
-                <label for="format-md">MD</label>
+                <label class="format-option">
+                    <input type="radio" name="format" value="md" />
+                    MD
+                </label>
 
-                <input type="radio" id="format-html" name="format" value="html" />
-                <label for="format-html">HTML</label>
+                <label class="format-option">
+                    <input type="radio" name="format" value="html" />
+                    HTML
+                </label>
             </fieldset>
 
             <button type="submit" id="submit-button">Go</button>
